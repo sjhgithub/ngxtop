@@ -11,10 +11,16 @@
             "module": "ngxtop.ngxtop",
             "args": [
                 "info",
+                //"--no-follow",
                 //"--prefix", "/install/nginx",
                 //"--config", "/install/nginx/conf/nginx.conf",
-                //"--access-log", "/install/nginx/logs/access.log",
-                //"--log-format", "$remote_addr - $remote_user [$time_local] \"$request\" $status $body_bytes_sent \"$http_referer\" \"$http_user_agent\" \"$http_x_forwarded_for\" $request_time $upstream_response_time",
+                //"sum", "body_bytes_sent",
+                //case 1
+                //"--access-log", "/install/nginx/logs/access.log", "--log-format", "$remote_addr - $remote_user [$time_local] \"$request\" $status $body_bytes_sent \"$http_referer\" \"$http_user_agent\" \"$http_x_forwarded_for\" $request_time $upstream_response_time",
+                //"query", "select count(*) as count,remote_addr,request from log where remote_addr=\"54.168.84.24\" group by request order by count desc", "remote_addr", "request",
+                //case 2
+                //"--access-log", "/install/nginx/logs/access_main.log", "--log-format", "$remote_addr - $remote_user [$time_local] \"$request\" $status $body_bytes_sent \"$http_referer\" \"$http_user_agent\" \"$http_x_forwarded_for\" $request_time $upstream_response_time body=\"$request_body\"",
+                //"query", "select count(*) as count,remote_addr,request,request_body from log where remote_addr=\"54.168.84.24\" group by request order by count desc", "remote_addr", "request", "request_body",
             ],
             "console": "integratedTerminal",
             "justMyCode": false

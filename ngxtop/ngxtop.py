@@ -4,7 +4,7 @@ Usage:
     ngxtop [options]
     ngxtop [options] (print|top|avg|sum) <var> ...
     ngxtop info
-    ngxtop [options] query <query> ...
+    ngxtop [options] query <query> <fields> ...
 
 Options:
     -l <file>, --access-log <file>  access log file to parse.
@@ -528,7 +528,8 @@ def build_processor(arguments):
         query = 'select %s from log' % selections
         report_queries = [(label, query)]
     elif arguments['query']:
-        report_queries = arguments['<query>']
+        query = arguments['<query>']
+        report_queries = [("'%s'"%query, query)]
         fields = arguments['<fields>']
     else:
         report_queries = [(name, query % arguments) for name, query in DEFAULT_QUERIES]
