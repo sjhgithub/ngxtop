@@ -1,0 +1,23 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Debug ngxtop",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "ngxtop.ngxtop",
+            "args": [
+                "info",
+                //"--prefix", "/install/nginx",
+                //"--config", "/install/nginx/conf/nginx.conf",
+                //"--access-log", "/install/nginx/logs/access.log",
+                //"--log-format", "$remote_addr - $remote_user [$time_local] \"$request\" $status $body_bytes_sent \"$http_referer\" \"$http_user_agent\" \"$http_x_forwarded_for\" $request_time $upstream_response_time",
+            ],
+            "console": "integratedTerminal",
+            "justMyCode": false
+        }
+    ]
+}

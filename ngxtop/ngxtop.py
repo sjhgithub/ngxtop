@@ -28,6 +28,7 @@ Options:
 
     Advanced / experimental options:
     -c <file>, --config <file>  allow ngxtop to parse nginx config file for log format and location.
+    -x <path>, --prefix <path>  allow ngxtop to set prefix from this location.
     -i <filter-expression>, --filter <filter-expression>  filter in, records satisfied given expression are processed.
     -p <filter-expression>, --pre-filter <filter-expression> in-filter expression to check in pre-parsing phase.
 
@@ -55,7 +56,7 @@ Examples:
 
     Analyze apache access log from remote machine using 'common' log format
     $ ssh remote tail -f /var/log/apache2/access.log | ngxtop -f common
-    
+
     Analyze Caddy JSON access log:
     $ ngxtop -l /var/log/caddy/access.log -f caddy
 """
@@ -132,7 +133,7 @@ def follow(the_file):
     current_size = 0
     retry_count = 0
     max_retries = 5
-    
+
     try:
         while True:
             # Check if we need to (re)open the file
@@ -144,26 +145,26 @@ def follow(the_file):
                         _clear_rotation_signal()
                     else:
                         logging.info(f"Detected log rotation for {the_file}, reopening...")
-                
+
                 # Try to open the file with retries
                 f, current_inode, current_size = _open_file_with_retry(the_file, max_retries)
                 if f is None:
                     logging.error(f"Failed to open {the_file} after {max_retries} retries")
                     break
-                
+
                 f.seek(0, 2)  # seek to eof
                 retry_count = 0
-            
+
             # Read new lines
             line = f.readline()
             if not line:
                 time.sleep(0.1)  # sleep briefly before trying again
                 continue
-            
+
             # Update current size
             current_size = f.tell()
             yield line
-            
+
     except KeyboardInterrupt:
         if f is not None:
             f.close()
@@ -184,18 +185,18 @@ def _should_reopen_file(file_path, current_inode, current_size):
         file_stat = os.stat(file_path)
         new_inode = file_stat.st_ino
         new_size = file_stat.st_size
-        
+
         # File has been rotated if:
         # 1. Inode changed (file was moved/renamed)
         # 2. File size decreased significantly (> 1000 bytes, indicating truncation/rotation)
         if current_inode is not None and new_inode != current_inode:
             return True
-        
+
         if new_size < current_size - 1000:  # Allow for some buffer, but detect major size drops
             return True
-            
+
         return False
-        
+
     except (OSError, IOError):
         # File doesn't exist or can't be accessed - we should try to reopen
         return True
@@ -211,7 +212,7 @@ def _open_file_with_retry(file_path, max_retries):
             file_stat = os.stat(file_path)
             f = open(file_path, 'r')
             return f, file_stat.st_ino, file_stat.st_size
-            
+
         except (OSError, IOError) as e:
             if attempt < max_retries - 1:
                 # Wait with exponential backoff: 0.1, 0.2, 0.4, 0.8, 1.6 seconds
@@ -220,7 +221,7 @@ def _open_file_with_retry(file_path, max_retries):
                 time.sleep(wait_time)
             else:
                 logging.error(f"Failed to open {file_path} after {max_retries} attempts: {e}")
-    
+
     return None, None, 0
 
 
@@ -312,28 +313,28 @@ def parse_caddy_log(lines):
             else:
                 # Find the first { after "handled request"
                 json_start = line.find('{', handled_pos + len('handled request'))
-            
+
             if json_start == -1:
                 continue
-                
+
             json_str = line[json_start:].strip()
-            
+
             # Basic check for complete JSON: should start with { and end with }
             if not json_str.endswith('}'):
                 # Likely truncated line, skip it
                 continue
-            
+
             # Handle potential truncated JSON by trying to parse
             entry = json.loads(json_str)
             if 'request' not in entry:
                 continue
-                
+
             # Extract request info
             req = entry.get('request', {})
             method = req.get('method', '-')
             uri = req.get('uri', '-')
             headers = req.get('headers', {})
-            
+
             # Get response info (nested in the logged JSON)
             status = entry.get('status', 0)
             size = entry.get('size', 0)
@@ -345,7 +346,7 @@ def parse_caddy_log(lines):
                     size = int(entry['bytes_read'])
             except (ValueError, TypeError):
                 size = 0
-                
+
             # Build record with fields ngxtop expects
             record = {
                 'remote_addr': req.get('remote_ip', '-'),
@@ -360,21 +361,21 @@ def parse_caddy_log(lines):
                 'request_time': float(entry.get('duration', 0)),
                 'host': req.get('host', '-'),  # Add host field from Caddy logs
             }
-            
+
             # Add derived fields
             record['status_type'] = record['status'] // 100
             record['bytes_sent'] = record['body_bytes_sent']
             record['request_path'] = urlparse.urlparse(uri).path if uri else None
-            
+
             yield record
-            
+
         except (json.JSONDecodeError, KeyError, ValueError, AttributeError) as e:
             # For JSON decode errors, provide appropriate level of detail
             if isinstance(e, json.JSONDecodeError):
                 # Always show a concise warning
                 line_preview = line[:200] + "..." if len(line) > 200 else line
                 logging.warning(f"Error parsing log line: {e} - Line preview: {line_preview.strip()}")
-                
+
                 # Show detailed debugging info only in verbose mode (INFO level)
                 if logging.getLogger().isEnabledFor(logging.INFO):
                     logging.info("="*80)
@@ -384,14 +385,14 @@ def parse_caddy_log(lines):
                     logging.info(f"Line ends with newline: {line.endswith(chr(10))}")
                     logging.info(f"JSON start position: {json_start}")
                     logging.info(f"Extracted JSON length: {len(json_str)} characters")
-                    
+
                     # Show the area around the error
                     if e.pos is not None and e.pos < len(json_str):
                         start = max(0, e.pos - 20)
                         end = min(len(json_str), e.pos + 20)
                         logging.info(f"JSON around error position: ...{json_str[start:end]}...")
                         logging.info(f"                            {' ' * (e.pos - start - 3)}^")
-                    
+
                     # Output the complete line for analysis
                     logging.info(f"Complete line from beginning ({len(line)} chars):")
                     # Show first 100 chars to see the prefix, then ... then area around JSON start
@@ -401,7 +402,7 @@ def parse_caddy_log(lines):
                         logging.info(f"{prefix}...{json_area}...")
                     else:
                         logging.info(line.rstrip())
-                    
+
                     # Output the extracted JSON string
                     logging.info(f"Extracted JSON string ({len(json_str)} chars):")
                     logging.info(json_str)
@@ -415,7 +416,7 @@ def parse_log(lines, pattern):
     # Handle Caddy format separately
     if pattern == 'caddy':
         return parse_caddy_log(lines)
-        
+
     # Regular nginx/apache log parsing
     matches = (pattern.match(l) for l in lines)
     records = (m.groupdict() for m in matches if m is not None)

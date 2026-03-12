@@ -29,7 +29,7 @@ parameter = Word(''.join(c for c in printables if c not in set('{;"\'')))
 parameter = parameter | quotedString.setParseAction(removeQuotes)
 
 
-def detect_config_path():
+def detect_config_path(conf_path = None, prefix_path = None):
     """
     Get nginx configuration file path based on `nginx -V` output
     :return: detected nginx configuration file path
@@ -43,13 +43,20 @@ def detect_config_path():
     stdout, stderr = proc.communicate()
     version_output = stderr.decode('utf-8')
     conf_path_match = re.search(r'--conf-path=(\S*)', version_output)
-    if conf_path_match is not None:
-        return conf_path_match.group(1)
-
     prefix_match = re.search(r'--prefix=(\S*)', version_output)
+
+    if conf_path_match is not None:
+        if conf_path is None:
+            conf_path = conf_path_match.group(1)
     if prefix_match is not None:
-        return prefix_match.group(1) + '/conf/nginx.conf'
-    return '/etc/nginx/nginx.conf'
+        if prefix_path is None:
+            prefix_path = prefix_match.group(1)
+        if conf_path is None:
+            conf_path = prefix_path + '/conf/nginx.conf'
+    if conf_path is None:
+        conf_path = '/etc/nginx/nginx.conf'
+
+    return conf_path, prefix_path
 
 
 def get_access_logs(config):
@@ -94,8 +101,9 @@ def detect_log_config(arguments):
     :return: path and format of detected / selected access log
     """
     config = arguments['--config']
-    if config is None:
-        config = detect_config_path()
+    prefix = arguments['--prefix']
+
+    config, prefix = detect_config_path(config, prefix)
     if not os.path.exists(config):
         error_exit('Nginx config file not found: %s' % config)
 
@@ -120,6 +128,8 @@ def detect_log_config(arguments):
     format_name = access_logs[log_path]
     if format_name not in log_formats:
         error_exit('Incorrect format name set in config for access log file "%s"' % log_path)
+    if (not os.path.exists(log_path)) and prefix is not None:
+        log_path = prefix + '/' + log_path
     return log_path, log_formats[format_name]
 
 
@@ -152,7 +162,7 @@ def extract_variables(log_format):
         log_format = LOG_FORMAT_COMMON
     elif log_format == 'caddy':
         # Define the fields available in Caddy logs
-        for field in ['remote_addr', 'remote_user', 'time_local', 'request', 
+        for field in ['remote_addr', 'remote_user', 'time_local', 'request',
                      'status', 'body_bytes_sent', 'http_referer', 'http_user_agent',
                      'request_time', 'request_uri', 'request_path', 'host']:
             yield field
