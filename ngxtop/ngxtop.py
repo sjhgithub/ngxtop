@@ -10,6 +10,8 @@ Options:
     -l <file>, --access-log <file>  access log file to parse.
     -f <format>, --log-format <format>  log format as specify in log_format directive. [default: combined]
                                        Supported values: combined, common, caddy (for Caddy JSON format)
+    --render-format <format> render format [default: table]
+                                       Supported values: table, vertical, json, yaml, tsv, md
     --no-follow  ngxtop default behavior is to ignore current lines in log
                      and only watch for new lines as they are written to the access log.
                      Use this flag to tell ngxtop to process the current content of the access log instead.
@@ -79,10 +81,9 @@ except ImportError:
     import urllib.parse as urlparse
 
 from docopt import docopt
-import tabulate
 
 from .config_parser import detect_log_config, detect_config_path, extract_variables, build_pattern
-from .utils import error_exit
+from .utils import render, error_exit
 
 
 DEFAULT_QUERIES = [
@@ -433,10 +434,11 @@ def parse_log(lines, pattern):
 # Records and statistic processor
 # =================================
 class SQLProcessor(object):
-    def __init__(self, report_queries, fields, index_fields=None):
+    def __init__(self, report_queries, fields, render_format="table", index_fields=None):
         self.begin = False
         self.report_queries = report_queries
         self.index_fields = index_fields if index_fields is not None else []
+        self.render_format = render_format
         self.column_list = ','.join(fields)
         self.holder_list = ','.join(':%s' % var for var in fields)
         self.conn = sqlite3.connect(':memory:')
@@ -464,8 +466,9 @@ class SQLProcessor(object):
                 else:
                     label = ''
                 cursor.execute(query)
-                columns = (d[0] for d in cursor.description)
-                result = tabulate.tabulate(cursor.fetchall(), headers=columns, tablefmt='orgtbl', floatfmt='.3f')
+                columns = [d[0] for d in cursor.description]
+                rows = cursor.fetchall()
+                result = render(columns, rows, fmt=self.render_format)
                 output.append('%s\n%s' % (label, result))
         return '\n\n'.join(output)
 
@@ -542,7 +545,8 @@ def build_processor(arguments):
     for field in fields:
         processor_fields.extend(field.split(','))
 
-    processor = SQLProcessor(report_queries, processor_fields)
+    render_format = arguments['--render-format']
+    processor = SQLProcessor(report_queries, processor_fields, render_format)
     return processor
 
 
